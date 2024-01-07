@@ -1,32 +1,30 @@
+import 'dart:developer';
 import 'dart:io';
 
-import 'package:shelf/shelf.dart';
-import 'package:shelf/shelf_io.dart';
-import 'package:shelf_router/shelf_router.dart';
-
-// Configure routes.
-final _router = Router()
-  ..get('/', _rootHandler)
-  ..get('/echo/<message>', _echoHandler);
-
-Response _rootHandler(Request req) {
-  return Response.ok('Hello, World!\n');
-}
-
-Response _echoHandler(Request request) {
-  final message = request.params['message'];
-  return Response.ok('$message\n');
-}
+import 'package:ddns_hub/ddns_hub.dart';
+import 'package:logging/logging.dart';
 
 void main(List<String> args) async {
+  Logger.root.onRecord.listen(onLogged);
   // Use any available host or container IP (usually `0.0.0.0`).
-  final ip = InternetAddress.anyIPv4;
+  final address = InternetAddress.anyIPv4;
+  // For running in containers, we respect the DDNS_HUB_PORT environment variable.
+  final port = int.parse(Platform.environment['DDNS_HUB_PORT'] ?? '3543');
+  final ddnsHub = DDNSHub();
+  await ddnsHub.setUp();
+  final server = await ddnsHub.serve(address, port);
+  Logger.root.info('Serving at http://${server.address.host}:${server.port}');
+}
 
-  // Configure a pipeline that logs requests.
-  final handler = Pipeline().addMiddleware(logRequests()).addHandler(_router);
-
-  // For running in containers, we respect the PORT environment variable.
-  final port = int.parse(Platform.environment['PORT'] ?? '8080');
-  final server = await serve(handler, ip, port);
-  print('Server listening on port ${server.port}');
+void onLogged(LogRecord record) {
+  log(
+    record.message,
+    time: record.time,
+    sequenceNumber: record.sequenceNumber,
+    level: record.level.value,
+    name: record.loggerName,
+    zone: record.zone,
+    error: record.error,
+    stackTrace: record.stackTrace,
+  );
 }
